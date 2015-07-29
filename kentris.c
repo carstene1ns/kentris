@@ -1,17 +1,6 @@
 /*
 KENTRIS source code
 
-To compile KENTRIS.C, you will need Microsoft C 6.00a. Please note: this is
-the old 16-bit compiler which existed before Visual C. To compile, you must
-specify the huge memory option like this:
-
-	cl /AH kentris.c
-
-If you want to port KENTRIS.C to a modern compiler or operating system, that
-would be great. If you do something cool, please do not hesitate to write me.
-I'm not interested in handling technical support for 15 year old code! If you
-just want to run the game in Windows, try using VDMSOUND or DOSBOX.
-
 License for this code:
 	* No commercial exploitation please
 	* Do not remove my name or this message from the code or credits
