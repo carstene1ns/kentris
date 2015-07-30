@@ -19,48 +19,48 @@ History:
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <conio.h>
 #include <ctype.h>
-#include <io.h>
 #include <fcntl.h>
-#include <sys\types.h>
-#include <sys\stat.h>
-#include <graph.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <time.h>
 #include <float.h>
 #include <math.h>
 #include <string.h>
-#include <process.h>
-#include <dos.h>
 #include <malloc.h>
+#include <strings.h>
+
+#include "gfx.h"
+#include "music.h"
+#include "sound.h"
+
 #define dataport 0x330
 #define statport 0x331
 
 static char blockmade[7] = {-1,-1,-1,-1,-1,-1,-1};
-static unsigned char huge *blockmap = NULL;
 static int shape[7][4][6] =
 {
-	1,0,0,1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,
-	0,-1,0,1,0,2,-1,0,1,0,2,0,0,-1,0,1,0,2,-1,0,1,0,2,0,
-	0,-1,1,-1,0,1,-1,0,1,0,1,1,0,-1,0,1,-1,1,-1,-1,-1,0,1,0,
-	-1,-1,0,-1,0,1,-1,0,1,0,1,-1,0,-1,0,1,1,1,-1,1,-1,0,1,0,
-	1,-1,1,0,0,1,-1,0,0,1,1,1,1,-1,1,0,0,1,-1,0,0,1,1,1,
-	-1,-1,-1,0,0,1,-1,1,0,1,1,0,-1,-1,-1,0,0,1,-1,1,0,1,1,0,
-	0,-1,1,0,0,1,-1,0,0,1,1,0,-1,0,0,-1,0,1,-1,0,1,0,0,-1
+	{{ 1, 0, 0, 1, 1, 1}, { 1, 0, 0, 1, 1, 1}, { 1, 0, 0, 1, 1, 1}, { 1, 0, 0, 1, 1, 1}},
+	{{ 0,-1, 0, 1, 0, 2}, {-1, 0, 1, 0, 2, 0}, { 0,-1, 0, 1, 0, 2}, {-1, 0, 1, 0, 2, 0}},
+	{{ 0,-1, 1,-1, 0, 1}, {-1, 0, 1, 0, 1, 1}, { 0,-1, 0, 1,-1, 1}, {-1,-1,-1, 0, 1, 0}},
+	{{-1,-1, 0,-1, 0, 1}, {-1, 0, 1, 0, 1,-1}, { 0,-1, 0, 1, 1, 1}, {-1, 1,-1, 0, 1, 0}},
+	{{ 1,-1, 1, 0, 0, 1}, {-1, 0, 0, 1, 1, 1}, { 1,-1, 1, 0, 0, 1}, {-1, 0, 0, 1, 1, 1}},
+	{{-1,-1,-1, 0, 0, 1}, {-1, 1, 0, 1, 1, 0}, {-1,-1,-1, 0, 0, 1}, {-1, 1, 0, 1, 1, 0}},
+	{{ 0,-1, 1, 0, 0, 1}, {-1, 0, 0, 1, 1, 0}, {-1, 0, 0,-1, 0, 1}, {-1, 0, 1, 0, 0,-1}}
 };
 static int fit[7][4][5] =
 {
-	0,0,-1,-1,0,0,0,-1,-1,0,0,0,-1,-1,0,0,0,-1,-1,0,
-	0,-1,-1,-1,0,0,0,0,0,1,0,-1,-1,-1,0,0,0,0,0,1,
-	0,2,-1,-1,0,1,1,0,-1,1,0,0,-1,-1,1,0,0,0,-1,1,
-	2,0,-1,-1,1,0,0,0,-1,1,0,0,-1,-1,0,0,1,1,-1,1,
-	0,1,-1,-1,0,1,0,0,-1,1,0,1,-1,-1,0,1,0,0,-1,1,
-	1,0,-1,-1,1,0,0,1,-1,1,1,0,-1,-1,1,0,0,1,-1,1,
-	0,1,-1,-1,0,1,0,1,-1,1,1,0,-1,-1,1,0,0,0,-1,1
+	{{0,0,-1,-1,0}, {0,0,-1,-1,0},{0,0,-1,-1,0}, {0,0,-1,-1,0}},
+	{{0,-1,-1,-1,0},{0,0,0,0,1},  {0,-1,-1,-1,0},{0,0,0,0,1}},
+	{{0,2,-1,-1,0}, {1,1,0,-1,1}, {0,0,-1,-1,1}, {0,0,0,-1,1}},
+	{{2,0,-1,-1,1}, {0,0,0,-1,1}, {0,0,-1,-1,0}, {0,1,1,-1,1}},
+	{{0,1,-1,-1,0}, {1,0,0,-1,1}, {0,1,-1,-1,0}, {1,0,0,-1,1}},
+	{{1,0,-1,-1,1}, {0,0,1,-1,1}, {1,0,-1,-1,1}, {0,0,1,-1,1}},
+	{{0,1,-1,-1,0}, {1,0,1,-1,1}, {1,0,-1,-1,1}, {0,0,0,-1,1}}
 };
-static unsigned char huge *snd = NULL;
+static unsigned char *snd = NULL;
 static unsigned char newpos[20];
-static short sbinited = 0, sbport = 0x220, sbdma = 1;
 static char dmapagenum[8] = {0x87,0x83,0x81,0x82,0x8f,0x8b,0x89,0x8a};
 static int option[11], optionum;
 static int coltable[7] = {9,12,11,10,13,14,15};
@@ -78,87 +78,86 @@ static clock_t tim[2], tick;
 static time_t tnow;
 static unsigned char mask[10][8] =
 {
-	255,255,255,255,255,255,255,255,
-	170,85,170,85,170,85,170,85,
-	59,139,115,116,46,206,209,220,
-	119,170,221,170,119,170,221,170,
-	221,187,136,17,221,187,136,17,
-	85,68,85,187,85,68,85,187,
-	85,221,17,238,85,221,17,238,
-	51,187,153,119,204,238,102,221,
-	89,101,149,86,89,101,149,86,
-	91,107,109,173,181,182,214,218
+	{255,255,255,255,255,255,255,255},
+	{170,85,170,85,170,85,170,85},
+	{59,139,115,116,46,206,209,220},
+	{119,170,221,170,119,170,221,170},
+	{221,187,136,17,221,187,136,17},
+	{85,68,85,187,85,68,85,187},
+	{85,221,17,238,85,221,17,238},
+	{51,187,153,119,204,238,102,221},
+	{89,101,149,86,89,101,149,86},
+	{91,107,109,173,181,182,214,218}
 };
-static int lmost[350], rmost[350];
-static double lin[16][14] =
-{
-	4,4,-70,-25,-20,-70,25,-20,-70,25,20,-70,-25,20,
-	4,5,-30,-25,-20,-70,0,-20,-70,0,20,-30,-25,20,
-	4,6,-30,25,-20,-70,0,-20,-70,0,20,-30,25,20,
-	4,7,-20,-25,-20,-20,25,-20,-20,25,20,-20,-25,20,
-	4,9,-20,-25,-20,20,-25,-20,20,-25,20,-20,-25,20,
-	4,10,-20,0,-20,20,0,-20,20,0,20,-20,0,20,
-	4,11,-20,25,-20,20,25,-20,20,25,20,-20,25,20,
-	4,12,30,-25,-20,30,25,-20,30,25,20,30,-25,20,
-	4,13,30,-25,-20,70,25,-20,70,25,20,30,-25,20,
-	4,14,70,-25,-20,70,25,-20,70,25,20,70,-25,20,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0
-};
-static double cosa1, cosa2, cosa3, sina1, sina2, sina3;
-static double a1, a2, a3, xd, yd, zd;
+
+
 static char buffer[640];
 static double ang1, ang2, ang3, xdir, ydir, zdir;
-static int numlines, xdim, ydim, cols;
 static int leng, count, enoughmemory;
-static unsigned int speed;
+static unsigned int speed = 1;
+static unsigned long *note = NULL, chanage[18];
 int midiscrap, midiinst = 0;
-unsigned long musicstat = 0, musicount, countstop, countskip = 15, nownote;
-unsigned int numnotes, speed, drumstat, numchans, firstime = 1;
-static unsigned long huge *note = NULL, chanage[18];
-static unsigned char inst[256][32], databuf[512];
-static unsigned char chanfreq[18], chantrack[18];
-static unsigned char trinst[16], trquant[16], trchan[16];
-static unsigned char trprio[16], trvol[16];
-static unsigned int pcfreq[62] =
-{
+unsigned int firstime = 1;
 
-	0,
-	65,69,73,78,82,87,92,98,104,110,117,123,
-	131,139,147,156,165,175,185,196,208,220,233,247,
-	262,277,294,311,330,349,370,392,415,440,466,494,
-	523,554,587,622,659,698,740,784,831,880,932,988,
-	1047,1109,1175,1245,1319,1397,1480,1568,1661,1760,1864,1976,
-	2094
+// HAXX
+#define stricmp strcasecmp
+void outp(int a, int b){
+	(void) a;
+	(void) b;
+}
+int _setvideomode(int a) {
+    (void) a;
+}
+enum {
+	_VRES16COLOR,
+	_ERESCOLOR,
+	_HRESBW,
+	_GFILLINTERIOR,
+	_GBORDER,
+	_GCURSOROFF,
+	_TEXTC80,
+	_GCLEARSCREEN,
+	_GPSET,
+	_DEFAULTMODE
 };
-static unsigned int adlibfreq[62] =
-{
-	0,
-	2390,2411,2434,2456,2480,2506,2533,2562,2592,2625,2659,2695,
-	3414,3435,3458,3480,3504,3530,3557,3586,3616,3649,3683,3719,
-	4438,4459,4482,4504,4528,4554,4581,4610,4640,4673,4707,4743,
-	5462,5483,5506,5528,5552,5578,5605,5634,5664,5697,5731,5767,
-	6486,6507,6530,6552,6576,6602,6629,6658,6688,6721,6755,6791,
-	7510
-};
-void interrupt far ksmhandler(void);
-void (interrupt far *old_handler)();
+
+
+//ENDOFHAXX
+
+void tetris();
+void newblock(int);
+void youlose(int);
+int loadset();
+int loaddat();
+void introduction();
+int getnames();
+
+void outstring(unsigned char, unsigned char, unsigned char, char[80]);
+void drawblock(int pl, int color);
+//block
+void drawinfo(int);
+void showoptions(int);
+
+void getblock(unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
+void putblock(unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
+
+void helpscreen();
+
+
+
 unsigned char backpal0, backpal1, backpal2, palchangecount;
 signed char pal0vel, pal1vel, pal2vel;
 int maxscanline;
 
-quitgame()
+void quitgame()
 {
-	if (blockmap != NULL) hfree(blockmap);
-	if (note != NULL) hfree(note);
-	if (snd != NULL) hfree(snd);
+	if (blockmap != NULL) free(blockmap);
+	if (note != NULL) free(note);
+	if (snd != NULL) free(snd);
 	exit(0);
 }
-main(int argc,char **argv)
+
+int main(int argc, char *argv[])
 {
 	int i;
 	char *founddot;
@@ -203,11 +202,11 @@ main(int argc,char **argv)
 	speed = 65535;
 	outp(0x40,0); outp(0x40,0);
 	enoughmemory = 7;
-	if ((blockmap = (unsigned char huge *)halloc(7168L,1)) == NULL)
+	if ((blockmap = (unsigned char *)malloc(7168)) == NULL)
 		enoughmemory--;
-	if ((note = (unsigned long huge *)halloc(8192L,4)) == NULL)
+	if ((note = (unsigned long *)malloc(8192*4)) == NULL)
 		{ option[9] = 0; enoughmemory-=2; }
-	if ((snd = (unsigned char huge *)halloc(64000L,1)) == NULL)
+	if ((snd = (unsigned char *)malloc(64000)) == NULL)
 		{ option[3] = 0; enoughmemory-=4; }
 	introduction();
 	while(1)
@@ -227,7 +226,7 @@ main(int argc,char **argv)
 	}
 }
 
-tetris()
+void tetris()
 {
 	static char pal[768];
 	int i, j, k, l, pl, color, row[20];
@@ -408,7 +407,7 @@ tetris()
 			if (graph == 0)
 			{
 				sprintf(buffer,"%s",hsname[name[1-i]]);
-				outstring(1,i*48+36,14,&buffer);
+				outstring(1,i*48+36,14,buffer);
 			}
 			if (graph > 0)
 			{
@@ -805,8 +804,7 @@ tetris()
 			 hswin[name[1-i]][name[i]]++;
 }
 
-check(pl,xx,yy)
-int pl,xx,yy;
+int check(int pl, int xx, int yy)
 {
 	int i, j;
 
@@ -824,8 +822,7 @@ int pl,xx,yy;
 	return(i);
 }
 
-newblock(pl)
-int pl;
+void newblock(int pl)
 {
 	x[pl] = (rand() % 2) + 4;
 	y[pl] = 0;
@@ -849,8 +846,7 @@ int pl;
 	tim[pl] = clock();
 }
 
-youlose(pl)
-int pl;
+void youlose(int pl)
 {
 	dead[pl] = 1;
 	avg[pl] = 0;
@@ -876,8 +872,7 @@ int pl;
 	}
 }
 
-drawblock(pl,color)
-int pl,color;
+void drawblock(int pl, int color)
 {
 	int i, xcoord, ycoord, clr;
 
@@ -897,8 +892,7 @@ int pl,color;
 	}
 }
 
-block(x1,y1,clr)
-int x1,y1,clr;
+block(int x1, int y1, int clr)
 {
 	if (graph == 0)
 	{
@@ -993,194 +987,6 @@ int x1,y1,clr;
 		if ((enoughmemory&1) == 1)
 			blockmade[clr-9] = 0;
 	}
-}
-
-int ksay(char *filename)
-{
-	int infile;
-	unsigned char tempchar;
-	unsigned int register i, j;
-	unsigned int leng;
-	unsigned long addr;
-	char *sbset;
-
-	if ((infile = open(filename, O_BINARY, S_IREAD)) == -1) return(-1);
-	read(infile, snd, 44);
-	if (option[5] == 0)
-	{
-		leng = read(infile, snd, 32000);
-		outp(97,inp(97) | 3);
-		if (musicstat == 0)
-			outp(0x21,1);
-		for(j=0;j<leng-2;j++)
-		{
-			outp(0x43,144);
-			outp(0x42,snd[j]>>2);
-			for(i=0;i<option[2];i++);
-			outp(0x43,144);
-			outp(0x42,snd[j]>>2);
-			for(i=0;i<option[2];i++);
-		}
-		if (musicstat == 0)
-			outp(0x21,0);
-		outp(97,inp(97) & 0xfc);
-	}
-	if (option[5] == 1)
-	{
-		leng = read(infile, snd, 32000);
-		if (musicstat == 0)
-			outp(0x21,1);
-		for(j=0;j<leng-2;j++)
-		{
-			outp(559,snd[j]);
-			for(i=0;i<option[2];i++);
-		}
-		if (musicstat == 0)
-			outp(0x21,0);
-	}
-	if (option[5] == 2)
-	{
-		if (sbinited == 0)
-		{
-			sbinited = 1;
-
-			sbset = getenv("BLASTER");
-			i = 0;
-			while (sbset[i] != 0)
-			{
-				switch(sbset[i])
-				{
-					case 'A': case 'a':
-						i++;
-						sbport = 0;
-						while (((sbset[i] >= 48) && (sbset[i] <= 57)) ||
-								 ((sbset[i] >= 'A') && (sbset[i] <= 'F')) ||
-								 ((sbset[i] >= 'a') && (sbset[i] <= 'f')))
-						{
-							sbport <<= 4;
-							if ((sbset[i] >= 48) && (sbset[i] <= 57)) sbport += (short)(sbset[i]-48);
-							else if ((sbset[i] >= 'A') && (sbset[i] <= 'F')) sbport += (short)(sbset[i]-55);
-							else if ((sbset[i] >= 'a') && (sbset[i] <= 'f')) sbport += (short)(sbset[i]-55-32);
-							i++;
-						}
-						break;
-					case 'D': case 'd':
-						i++;
-						if ((sbset[i] >= 48) && (sbset[i] <= 57))
-							{ sbdma = (short)(sbset[i]-48); i++; }
-						break;
-					default: i++; break;
-				}
-			}
-		}
-		if (reset_dsp() == 0)
-		{
-			addr = (((long)FP_SEG(snd))<<4) + ((long)FP_OFF(snd));
-			if ((addr&65535) > (32000^0xffff))
-				{ leng = read(infile,&snd[32000],32000); addr += 32000; }
-			else
-				leng = read(infile,&snd[0],32000);
-			_asm \
-			{
-				mov dx, sbport
-				add dx, 0xc
-sb1:        in al, dx
-				test al, 128
-				jnz short sb1
-				mov al, 0xd1
-				out dx, al
-sb2:        in al, dx
-				test al, 128
-				jnz short sb2
-				mov al, 0x40
-				out dx, al
-sb3:        in al, dx
-				test al, 128
-				jnz short sb3
-				mov al, 145
-				out dx, al
-sb4:        in al, dx
-				test al, 128
-				jnz short sb4
-				mov al, 0x14
-				out dx, al
-sb5:        in al, dx
-				test al, 128
-				jnz short sb5
-				mov ax, word ptr leng[0]
-				dec ax
-				out dx, al
-sb6:        in al, dx
-				test al, 128
-				jnz short sb6
-				mov al, ah
-				out dx, al
-
-				mov bx, word ptr sbdma[0]
-				mov al, bl
-				add al, 4
-				out 0xa, al
-				xor al, al
-				out 0xc, al
-				mov al, bl
-				add al, 0x48
-				out 0xb, al
-				mov dx, bx
-				add dx, dx
-				mov ax, word ptr addr[0]
-				out dx, al
-				mov al, ah
-				out dx, al
-				inc dx
-				mov ax, word ptr leng[0]
-				dec ax
-				out dx, al
-				mov al, ah
-				out dx, al
-				mov dl, byte ptr dmapagenum[bx]
-				mov al, byte ptr addr[2]
-				out dx, al
-				mov al, bl
-				out 0xa, al
-			}
-			//leng--;
-			//while (inp(sbport+0xc)&128); outp(sbport+0xc,0xd1);
-			//while (inp(sbport+0xc)&128); outp(sbport+0xc,0x40);
-			//while (inp(sbport+0xc)&128); outp(sbport+0xc,145);
-			//while (inp(sbport+0xc)&128); outp(sbport+0xc,0x14);
-			//while (inp(sbport+0xc)&128); outp(sbport+0xc,leng&255);
-			//while (inp(sbport+0xc)&128); outp(sbport+0xc,(leng>>8)&255);
-			//outp(0xa,sbdma+4);
-			//outp(0xc,0);
-			//outp(0xb,sbdma+0x48);
-			//outp(sbdma<<1,(int)(addr&255)); outp(sbdma<<1,(int)((addr>>8)&255));
-			//outp((sbdma<<1)+1,leng&255); outp((sbdma<<1)+1,(leng>>8)&255);
-			//outp(dmapagenum[sbdma],(int)((addr>>16)&255));
-			//outp(0xa,sbdma);
-		}
-	}
-	if (option[5] == 3)
-	{
-		addr = ((long)FP_SEG(snd)<<4) + (long)FP_OFF(snd);
-		if (((addr&65535)^65535) < 32000)
-		{
-			leng = read(infile, &snd[32000], 32000);
-			addr += 32000;
-		}
-		else
-			leng = read(infile, &snd[0], 32000);
-		outp(0x138b,0x36); outp(0x1388,132); outp(0x1388,0);
-		outp(0xf8a,0xf9); outp(0xb8a,0xf9); outp(0xb8b,8);
-		outp(0xa,0x5);
-		outp(0x83,(int)((addr>>16)&255));
-		outp(0xc,0);
-		outp(0x2,(int)(addr&255)); outp(0x2,(int)((addr>>8)&255));
-		outp(0x3,(leng-1)&255); outp(0x3,((leng-1)>>8)&255);
-		outp(0xb,0x49);
-		outp(0xa,0x1);
-	}
-	close(infile);
-	return(0);
 }
 
 options()
@@ -1318,8 +1124,7 @@ options()
 	}
 }
 
-showoptions(highlighted)
-int highlighted;
+void showoptions(int highlighted)
 {
 	_settextposition(8,60); _settextcolor((highlighted==0)*8+6);
 	if (option[0] == 0)
@@ -1396,7 +1201,7 @@ int highlighted;
 		_outtext("CGA      ");
 }
 
-loadset()
+int loadset()
 {
 	FILE *infile;
 	int i, j;
@@ -1426,7 +1231,7 @@ loadset()
 	return(0);
 }
 
-saveset()
+int saveset()
 {
 	FILE *infile;
 	int i, j;
@@ -1450,8 +1255,11 @@ saveset()
 	return(0);
 }
 
-loaddat()
+int loaddat()
 {
+	/* TODO: port to fopen/fread/fclose */
+	return -1;
+/*
 	int i, j, infile;
 	char st[80];
 
@@ -1464,10 +1272,15 @@ loaddat()
 	 read(infile,&hswin[i][j],2);
 	close(infile);
 	return(0);
+*/
 }
 
-savedat()
+int savedat()
 {
+	/* TODO: port to fopen/fwrite/fclose */
+	return -1;
+/*
+
 	int i, j, infile;
 	char st[80];
 
@@ -1480,6 +1293,7 @@ savedat()
 	 write(infile,&hswin[i][j],2);
 	close(infile);
 	return(0);
+*/
 }
 
 getnames()
@@ -1664,8 +1478,7 @@ getnames()
 		return(1);
 }
 
-drawinfo(color)
-int color;
+void drawinfo(int color)
 {
 	int i;
 
@@ -1790,8 +1603,7 @@ password()
 	str[i] = 0;
 }
 
-computermove(pl)
-int pl;
+void computermove(int pl)
 {
 	int i, j, rotation, place, rotsave, plasave, size, high, work, top[10];
 	int hole, holsave, average, dependable, direction;
@@ -1881,11 +1693,11 @@ int pl;
 	down[pl] = 1;
 }
 
-introduction()
+void introduction()
 {
 	int i, page, saidkentris;
 	char ch;
-	void far *addr = (void far *)buffer;
+	void *addr = (void *)buffer;
 
 	xdim = 640;
 	ydim = 350;
@@ -2043,273 +1855,7 @@ introduction()
 	_setvideomode(_DEFAULTMODE);
 }
 
-drawtri(int *obj)
-{
-	int i, umost, dmost;
-
-	umost = ydim;
-	dmost = -1;
-	for(i=3;i<=9;i+=2)
-	{
-		if (obj[i] < umost) umost = obj[i];
-		if (obj[i] > dmost) dmost = obj[i];
-	}
-	if (umost < 0) umost = 0;
-	if (dmost >= ydim) dmost = ydim-1;
-	for (i=umost;i<=dmost;i++)
-	{
-		lmost[i] = xdim;
-		rmost[i] = -1;
-	}
-	checkline(obj[2],obj[3],obj[4],obj[5]);
-	checkline(obj[4],obj[5],obj[6],obj[7]);
-	if (obj[0] == 3)
-		checkline(obj[6],obj[7],obj[2],obj[3]);
-	if (obj[0] == 4)
-	{
-		checkline(obj[6],obj[7],obj[8],obj[9]);
-		checkline(obj[8],obj[9],obj[2],obj[3]);
-	}
-	_setcolor(obj[1]);
-	for(i=umost;i<=dmost;i++)
-		if (lmost[i] < rmost[i])
-		{
-			_moveto(lmost[i],i);
-			_lineto(rmost[i],i);
-		}
-}
-
-checkline(x1,y1,x2,y2)
-int x1,y1,x2,y2;
-{
-	int dx, dy, incr1, incr2, d, x, y, xend, yend, yinc, xinc;
-
-	dx = abs(x2 - x1);
-	dy = abs(y2 - y1);
-	if (dx >= dy)
-	{
-		if (x1 > x2)
-		{
-			x = x2; y = y2; xend = x1;
-			if (dy == 0)
-				yinc = 0;
-			else
-			{
-				if (y2 > y1)
-					yinc = -1;
-				else
-					yinc = 1;
-			}
-		}
-		else
-		{
-			x = x1; y = y1; xend = x2;
-			if (dy == 0)
-				yinc = 0;
-			else
-			{
-				if (y2 > y1)
-					yinc = 1;
-				else
-					yinc = -1;
-			}
-		}
-		incr1 = 2*dy; d = incr1-dx; incr2 = 2 * (dy-dx);
-		if (x < lmost[y])
-			lmost[y] = x;
-		if (x > rmost[y])
-			rmost[y] = x;
-		while (x < xend)
-		{
-			x++;
-			if (d < 0)
-				d += incr1;
-			else
-			{
-				y += yinc;
-				d = d + incr2;
-			}
-			if (x < lmost[y])
-				lmost[y] = x;
-			if (x > rmost[y])
-				rmost[y] = x;
-		}
-	}
-	else
-	{
-		if (y1 > y2)
-		{
-			x = x2; y = y2; yend = y1;
-			if (dx == 0)
-				xinc = 0;
-			else
-			{
-				if (x2 > x1)
-					xinc = -1;
-				else
-					xinc = 1;
-			}
-		}
-		else
-		{
-			x = x1; y = y1; yend = y2;
-			if (dx == 0)
-				xinc = 0;
-			else
-			{
-				if (x2 > x1)
-					xinc = 1;
-				else
-					xinc = -1;
-			}
-		}
-		incr1 = 2*dx; d = incr1-dy; incr2 = 2 * (dx-dy);
-		if (x < lmost[y])
-			lmost[y] = x;
-		if (x > rmost[y])
-			rmost[y] = x;
-		while (y < yend)
-		{
-			y++;
-			if (d < 0)
-				d += incr1;
-			else
-			{
-				x += xinc;
-				d += incr2;
-			}
-			if (x < lmost[y])
-				lmost[y] = x;
-			if (x > rmost[y])
-				rmost[y] = x;
-		}
-	}
-}
-
-drawlines()
-{
-	static int object[16][10];
-	static double distance[16];
-	int i, j, k, it;
-	double x[4], y[4], z[4], xt, yt, zt, ft, zdoffs, zrecip;
-	double mat[9];
-
-	zdoffs = zd*((ydim==200)+1);
-
-	mat[0] = cosa1*cosa2;
-	mat[1] = -sina1*cosa2;
-	mat[2] = sina2;
-	mat[3] = sina1*cosa3+cosa1*sina2*sina3;
-	mat[4] = cosa1*cosa3-sina1*sina2*sina3;
-	mat[5] = -cosa2*sina3;
-	mat[6] = sina1*sina3-cosa1*sina2*cosa3;
-	mat[7] = cosa1*sina3+sina1*sina2*cosa3;
-	mat[8] = cosa2*cosa3;
-
-	for(i=0;i<numlines;i++)
-	{
-		k = 0;
-		for(j=0;j<4;j++)
-		{
-			xt = lin[i][k+2]; yt = lin[i][k+3]; zt = lin[i][k+4];
-			x[j] = xt*mat[0] + yt*mat[1] + zt*mat[2];
-			y[j] = xt*mat[3] + yt*mat[4] + zt*mat[5];
-			z[j] = xt*mat[6] + yt*mat[7] + zt*mat[8] + zdoffs;
-			k += 3;
-		}
-		//if ((z[0] > 10) && (z[1] > 10) && (z[2] > 10) && (z[3] > 10))
-		//{
-			object[i][0] = (int)lin[i][0];
-			object[i][1] = (int)lin[i][1];
-			for(j=0;j<4;j++)
-			{
-				zrecip = 1024.0 / z[j];
-				object[i][j*2+2] = x[j]*zrecip+xd+320;
-				object[i][j*2+3] = y[j]*zrecip+yd+(ydim>>1);
-			}
-			//if (lin[i][0] == 3) distance[i] = (z[0]+z[1]+z[2])*4;
-			//if (lin[i][0] == 4)
-				distance[i] = (z[0]+z[1]+z[2]+z[3]); //*3;
-		//}
-	}
-	if (ydim == 200)
-	{
-		for(i=1;i<numlines;i++)
-			for(j=0;j<i;j++)
-				if(distance[i] < distance[j])
-				{
-					ft = distance[i];
-					distance[i] = distance[j];
-					distance[j] = ft;
-					for(k=0;k<10;k++)
-					{
-						it = object[i][k];
-						object[i][k] = object[j][k];
-						object[j][k] = it;
-					}
-				}
-		for(i=0;i<numlines;i++) drawtri(&object[i][0]);
-	}
-	if (ydim == 350)
-	{
-		/*for(i=1;i<numlines;i++)
-			for(j=0;j<i;j++)
-				if(distance[i] > distance[j])
-				{
-					ft = distance[i];
-					distance[i] = distance[j];
-					distance[j] = ft;
-					for(k=0;k<10;k++)
-					{
-						it = object[i][k];
-						object[i][k] = object[j][k];
-						object[j][k] = it;
-					}
-				}*/
-
-//    -70 -30 -20 20 30  70
-//-25  |0  /  |----4 |\   |
-//     | /1   |      | \ 9|
-// 0   |<    3|----5 | 8\ |
-//     | \2   |      |   \|
-//25   |   \  |----6 |7   |
-//
-//K:  9876543210
-//KE: 9876543021
-//EN: 0213987456
-//NN: 0213456798
-//N:  0213456789
-		ft = (mat[2]*mat[4] - mat[1]*mat[5])*zdoffs;
-
-		if (ft < -70)
-			{ for(i=10-1;i>=0;i--) drawtri(&object[i][0]); }
-		else if (ft > 70)
-		{
-			drawtri(&object[0][0]); drawtri(&object[2][0]); drawtri(&object[1][0]);
-			for(i=3;i<10;i++) drawtri(&object[i][0]);
-		}
-		else if (ft < -20)
-		{
-			for(i=9;i>=3;i--) drawtri(&object[i][0]);
-			drawtri(&object[0][0]); drawtri(&object[2][0]); drawtri(&object[1][0]);
-		}
-		else if (ft > 30)
-		{
-			drawtri(&object[0][0]); drawtri(&object[2][0]); drawtri(&object[1][0]);
-			for(i=3;i<=7;i++) drawtri(&object[i][0]);
-			drawtri(&object[9][0]); drawtri(&object[8][0]);
-		}
-		else
-		{
-			drawtri(&object[0][0]); drawtri(&object[2][0]); drawtri(&object[1][0]);
-			drawtri(&object[3][0]); drawtri(&object[9][0]); drawtri(&object[8][0]);
-			drawtri(&object[7][0]); drawtri(&object[4][0]); drawtri(&object[5][0]);
-			drawtri(&object[6][0]);
-		}
-	}
-}
-
-loadfile()
+int loadfile()
 {
 	FILE *infile;
 	int i;
@@ -2335,7 +1881,7 @@ loadfile()
 	fclose(infile);
 }
 
-helpscreen()
+void helpscreen()
 {
 	char ch;
 
@@ -2451,41 +1997,6 @@ helpscreen()
 	ch = 0;
 }
 
-reset_dsp()
-{
-	_asm \
-	{
-		mov dx, sbport
-		add dx, 6
- lb1: and dx, 0xfff7
-		mov al, 1
-		out dx, al
-		mov cx, 128
- lab1:in al, dx
-		dec cx
-		jnz lab1
-		xor al, al
-		out dx, al
-		mov cx, 128
- lab2:in al, dx
-		dec cx
-		jnz lab2
-		or dx, 0xe
-		mov cx, -1
- lb2: in al, dx
-		test al, 128
-		jnz lb3
-		dec cx
-		jnz lb2
-		jmp lb1
- lb3:
-	}
-	if (inp(sbport+0xa) == 0xaa)
-		return(0);
-	else
-		return(-1);
-}
-
 setvideomodetseng()
 {
 	unsigned char new_value, old_value, value;
@@ -2521,664 +2032,15 @@ setvideomodetseng()
 			if (new_value == (old_value ^ 0x0f))
 			{
 				returnvalue = 1;
+/*
 				_asm \
 				{
 					mov ax, 0x38
 					int 0x10
 				}
+*/
 			}
 		}
 	}
 	return(returnvalue);
-}
-
-hlin(x1,x2,y,color)
-int x1,x2,y;
-char color;
-{
-	unsigned int lopos, lineleng;
-
-	lineleng = (x2-x1)+1;
-	outp(0x3cd,y>>6);
-	lopos = ((unsigned int)(y&63)<<10)+x1;
-	_asm \
-	{
-		mov ax, 0xa000
-		mov es, ax
-		mov di, lopos
-		mov cx, lineleng
-		mov al, color
-		cld
-		rep stosb
-	}
-}
-
-vlin(x,y1,y2,color)
-int x,y1,y2;
-char color;
-{
-	unsigned int lopos, lineleng, ycount;
-
-	outp(0x3cd,y1>>6);
-	lopos = ((unsigned int)(y1&63)<<10)+x;
-	_asm \
-	{
-		mov ax, 0xa000
-		mov es, ax
-	}
-	for(ycount=y1;ycount<=y2;ycount++)
-	{
-		_asm \
-		{
-			mov di, lopos
-			mov al, color
-			stosb
-		}
-		lopos += 1024;
-		if (lopos < 1024)
-			outp(0x3cd,(ycount+1)>>6);
-	}
-}
-
-rectfill(x1,y1,x2,y2,color)
-int x1,y1,x2,y2;
-char color;
-{
-	unsigned int lopos, lineleng, ycount;
-
-	lineleng = (x2-x1)+1;
-	outp(0x3cd,y1>>6);
-	lopos = ((unsigned int)(y1&63)<<10)+x1;
-	_asm \
-	{
-		mov ax, 0xa000
-		mov es, ax
-		cld
-	}
-	for(ycount=y1;ycount<=y2;ycount++)
-	{
-		_asm \
-		{
-			mov di, lopos
-			mov cx, lineleng
-			mov al, color
-			rep stosb
-		}
-		lopos += 1024;
-		if (lopos < 1024)
-			outp(0x3cd,(ycount+1)>>6);
-	}
-}
-
-rectopen(x1,y1,x2,y2,color)
-int x1,y1,x2,y2;
-char color;
-{
-	unsigned int lopos, lineleng, ycount;
-
-	lineleng = (x2-x1)+1;
-	outp(0x3cd,y1>>6);
-	lopos = ((unsigned int)(y1&63)<<10)+x1;
-	_asm \
-	{
-		mov ax, 0xa000
-		mov es, ax
-		mov di, lopos
-		mov cx, lineleng
-		mov al, color
-		cld
-		rep stosb
-	}
-	for(ycount=y1+1;ycount<y2;ycount++)
-	{
-		lopos += 1024;
-		if (lopos < 1024)
-			outp(0x3cd,(ycount+1)>>6);
-		_asm \
-		{
-			mov di, lopos
-			mov al, color
-			stosb
-			add di, lineleng
-			dec di
-			dec di
-			stosb
-		}
-	}
-	lopos += 1024;
-	if (lopos < 1024)
-		outp(0x3cd,(ycount+1)>>6);
-	_asm \
-	{
-		mov di, lopos
-		mov cx, lineleng
-		mov al, color
-		rep stosb
-	}
-}
-
-outstring(y,x,col,buf)
-unsigned char y, x, col, buf[80];
-{
-	int i;
-	char j;
-
-	_asm \
-	{
-		mov ah, 2
-		mov bh, 0
-		mov dh, y
-		mov dl, x
-		int 0x10
-	}
-	for(i=0;i<strlen(buf);i++)
-	{
-		j = buf[i];
-		_asm \
-		{
-			mov ah, 0xe
-			mov al, j
-			mov bl, col
-			int 0x10
-		}
-	}
-}
-
-getblock(x1,y1,x2,y2,blocknum)
-unsigned int x1,y1,x2,y2,blocknum;
-{
-	unsigned int lopos, lineleng, ycount, arrpos;
-	void far *addr = (void far *)blockmap;
-
-	lineleng = (x2-x1)+1;
-	outp(0x3cd,(y1>>6)<<4);
-	lopos = ((unsigned int)(y1&63)<<10)+x1;
-	arrpos = (blocknum<<10);
-	for(ycount=y1;ycount<=y2;ycount++)
-	{
-		movedata(0xa000,lopos,FP_SEG(addr),FP_OFF(addr)+arrpos,lineleng);
-		arrpos += lineleng;
-		lopos += 1024;
-		if (lopos < 1024)
-			outp(0x3cd,((ycount+1)>>6)<<4);
-	}
-}
-
-putblock(x1,y1,x2,y2,blocknum)
-unsigned int x1,y1,x2,y2,blocknum;
-{
-	unsigned int lopos, lineleng, ycount, arrpos;
-	void far *addr = (void far *)blockmap;
-
-	lineleng = (x2-x1)+1;
-	outp(0x3cd,y1>>6);
-	lopos = ((unsigned int)(y1&63)<<10)+x1;
-	arrpos = (blocknum<<10);
-	for(ycount=y1;ycount<=y2;ycount++)
-	{
-		movedata(FP_SEG(addr),FP_OFF(addr)+arrpos,0xa000,lopos,lineleng);
-		arrpos += lineleng;
-		lopos += 1024;
-		if (lopos < 1024)
-			outp(0x3cd,(ycount+1)>>6);
-	}
-}
-
-loadmusic(filename)
-char filename[80];
-{
-	int infile, i, j;
-
-	if (firstime == 1)
-	{
-		if (option[9] == 2)
-		{
-			midiscrap = 256;
-			while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-				midiscrap--;
-			outp(statport,0x3f);
-			midiscrap = 32000;
-			while ((midiscrap > 0) && ((inp(dataport) & 0xfe) != 0))
-				midiscrap--;
-		}
-		if (option[9]== 3)
-		{
-			if((infile=open("insts.dat",O_BINARY|O_RDONLY,S_IREAD))==-1)
-				return(-1);
-			for(i=0;i<256;i++)
-			{
-				read(infile,&buffer,33);
-				for(j=0;j<20;j++)
-					inst[i][j] = buffer[j];
-				inst[i][20] = 0;
-				for(j=21;j<32;j++)
-					inst[i][j] = buffer[j-1];
-			}
-			close(infile);
-			numchans = 9;
-			outdata(0,0x1,0);  //clear test stuff
-			outdata(0,0x4,0);  //reset
-			outdata(0,0x8,0);  //2-operator synthesis
-			firstime = 0;
-		}
-	}
-	if((infile=open(filename,O_BINARY|O_RDONLY,S_IREAD))==-1)
-		return(-1);
-	read(infile,&trinst[0],16);
-	read(infile,&trquant[0],16);
-	read(infile,&trchan[0],16);
-	read(infile,&trprio[0],16);
-	read(infile,&trvol[0],16);
-	read(infile,&numnotes,2);
-	read(infile,&note[0],numnotes<<2);
-	close(infile);
-	countskip = 15;
-	if ((trquant[0] == 3) || (trquant[1] == 6))
-		countskip = 10;
-	numchans = 9-trchan[11]*3;
-	if (option[9] == 2)
-		setmidiinsts();
-	if (option[9] == 3)
-	{
-		if (trchan[11] == 0)
-		{
-			drumstat = 0;
-			outdata(0,0xbd,drumstat);
-		}
-		if (trchan[11] == 1)
-		{
-			setinst(0,6,0,63-trvol[11],0xd6,0x68,0,0,10,0xd6,0x68,0,4); //bass
-			setinst(0,7,0,63-trvol[12],0xd8,0x4f,0,0,63-trvol[14],0xf8,0xff,0,14); //snare & hihat
-			setinst(0,8,0,63-trvol[15],0xf5,0xc8,0,0,63-trvol[13],0xd6,0x88,0,0);  //topsymb & tom
-			outdata(0,0xa0+6,600&255);
-			outdata(0,0xb0+6,(600>>8)&223);
-			outdata(0,0xa0+7,400&255);
-			outdata(0,0xb0+7,(400>>8)&223);
-			outdata(0,0xa0+8,5510&255);
-			outdata(0,0xb0+8,(5510>>8)&223);
-			drumstat = 32;
-			outdata(0,0xbd,drumstat);
-		}
-	}
-}
-
-outdata(synth,index,data)
-unsigned char synth,index,data;
-{
-	if (synth == 1)
-		_asm mov dx, 0x38a ; get the right 3812 address
-	else
-		_asm mov dx, 0x388 ; get the left 3812 address
-	_asm \
-	{
-		mov ax, index    ; get the index value
-		out dx, al       ; output to both chips
-		in al, dx        ; slow down for the index to settle
-		in al, dx
-		in al, dx
-		in al, dx
-		in al, dx
-		inc dx           ; move to the data register
-		mov ax, data
-		out dx, al       ; write the data out
-		mov cx, 33       ; load the loop count
- lbl1:in al, dx
-		loop lbl1
-	}
-}
-
-musicon()
-{
-	char ch;
-	unsigned int num;
-	int i, j, k, offs;
-	unsigned char instbuf[11];
-
-	for(i=0;i<numchans;i++)
-	{
-		chantrack[i] = 0;
-		chanage[i] = 0;
-	}
-	j = 0;
-	for(i=0;i<16;i++)
-		if ((trchan[i] > 0) && (j < numchans))
-		{
-			k = trchan[i];
-			while ((j < numchans) && (k > 0))
-			{
-				chantrack[j] = i;
-				k--;
-				j++;
-			}
-		}
-	for(i=0;i<numchans;i++)
-	{
-		if (option[9] == 3)
-		{
-			for(j=0;j<11;j++)
-				instbuf[j] = inst[trinst[chantrack[i]]][j+21];
-			instbuf[1] = ((instbuf[1]&192)|(63-trvol[chantrack[i]]));
-			setinst(0,i,instbuf[0],instbuf[1],instbuf[2],instbuf[3],instbuf[4],instbuf[5],instbuf[6],instbuf[7],instbuf[8],instbuf[9],instbuf[10]);
-		}
-		chanfreq[i] = 0;
-	}
-	k = 0;
-	musicstat = 0;
-	musicount = (note[k]>>12)-1;
-	countstop = (note[k]>>12)-1;
-	nownote = note[k];
-	musicstat = 1;
-	outp(0x43,0x36); outp(0x40,0); outp(0x40,0);
-	if (countskip == 10)
-	{
-		outp(0x43,0x36); outp(0x40,255); outp(0x40,170);
-	}
-	old_handler = _dos_getvect(0x1c);
-	_disable(); _dos_setvect(0x1c, ksmhandler); _enable();
-}
-
-musicoff()
-{
-	int i;
-
-	outp(0x43,0x36); outp(0x40,0); outp(0x40,0);
-	_disable(); _dos_setvect(0x1c, old_handler); _enable();
-	if (option[9] == 1)
-		outp(97, inp(97) & 0xfc);
-	if (option[9] == 2)
-		for(i=0;i<numchans;i++)
-		{
-			midiscrap = 256;
-			while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-				midiscrap--;
-			if (midiscrap > 0)
-			{
-				if (i < 6)
-					outp(dataport,0x90);
-				else
-					outp(dataport,0x91);
-			}
-			midiscrap = 256;
-			while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-				midiscrap--;
-			if (midiscrap > 0)
-				outp(dataport,chanfreq[i]+35);
-			midiscrap = 256;
-			while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-				midiscrap--;
-			if (midiscrap > 0)
-				outp(dataport,0);
-		}
-	if (option[9] == 3)
-		for(i=0;i<numchans;i++)
-		{
-			outdata(0,0xa0+i,0);
-			outdata(0,0xb0+i,0);
-		}
-	musicstat = 0;
-}
-
-void interrupt far ksmhandler()
-{
-	int i, j, quanter, bufnum, chan, drumnum, freq;
-	long temp;
-
-	musicount += countskip;
-	if (musicount >= countstop)
-	{
-		bufnum = 0;
-		while (musicount >= countstop)
-		{
-			if (option[9] == 1)
-			{
-				if ((((note[nownote]>>8)&15) == 0) && ((note[nownote]&64) > 0))
-				{
-					databuf[bufnum] = (unsigned char)(note[nownote]&63);
-					bufnum++;
-				}
-			}
-			if (option[9] > 1)
-			{
-				if (((note[nownote]&255) >= 1) && ((note[nownote]&255) <= 61))
-				{
-					i = 0;
-					while (((chanfreq[i] != (note[nownote]&63)) || (chantrack[i] != ((note[nownote]>>8)&15))) && (i < numchans))
-						i++;
-					if (i < numchans)
-					{
-						if (option[9] == 2)
-						{
-							if (i < 6)
-								databuf[bufnum] = (unsigned char)(0x90);
-							else
-								databuf[bufnum] = (unsigned char)(0x91);
-							bufnum++;
-							databuf[bufnum] = (unsigned char)(note[nownote]&63)+35; bufnum++;
-							databuf[bufnum] = (unsigned char)0; bufnum++;
-						}
-						if (option[9] == 3)
-						{
-							databuf[bufnum] = (unsigned char)(0xa0+i); bufnum++;
-							databuf[bufnum] = (unsigned char)(adlibfreq[note[nownote]&63]&255); bufnum++;
-							databuf[bufnum] = (unsigned char)(0xb0+i); bufnum++;
-							databuf[bufnum] = (unsigned char)((adlibfreq[note[nownote]&63]>>8)&223); bufnum++;
-						}
-						chanfreq[i] = 0;
-						chanage[i] = 0;
-					}
-				}
-				else if (((note[nownote]&255) >= 65) && ((note[nownote]&255) <= 125))
-				{
-					if (((note[nownote]>>8)&15) < 11)
-					{
-						temp = 0;
-						i = numchans;
-						for(j=0;j<numchans;j++)
-							if ((countstop - chanage[j] >= temp) && (chantrack[j] == ((note[nownote]>>8)&15)))
-							{
-								temp = countstop - chanage[j];
-								i = j;
-							}
-						if (i < numchans)
-						{
-							if (option[9] == 2)
-							{
-								if (i < 6)
-									databuf[bufnum] = (unsigned char)(0x90);
-								else
-									databuf[bufnum] = (unsigned char)(0x91);
-								bufnum++;
-								databuf[bufnum] = (unsigned char)(note[nownote]&63)+35; bufnum++;
-								databuf[bufnum] = (unsigned char)64; bufnum++;
-							}
-							if (option[9] == 3)
-							{
-								databuf[bufnum] = (unsigned char)(0xa0+i); bufnum++;
-								databuf[bufnum] = (unsigned char)0; bufnum++;
-								databuf[bufnum] = (unsigned char)(0xb0+i); bufnum++;
-								databuf[bufnum] = (unsigned char)0; bufnum++;
-								databuf[bufnum] = (unsigned char)(0xa0+i); bufnum++;
-								databuf[bufnum] = (unsigned char)(adlibfreq[note[nownote]&63]&255); bufnum++;
-								databuf[bufnum] = (unsigned char)(0xb0+i); bufnum++;
-								databuf[bufnum] = (unsigned char)((adlibfreq[note[nownote]&63]>>8)|32); bufnum++;
-							}
-							chanfreq[i] = note[nownote]&63;
-							chanage[i] = countstop;
-						}
-					}
-					else
-					{
-						if (option[9] == 2)
-						{
-							databuf[bufnum] = (unsigned char)(0x92), bufnum++;
-							switch((note[nownote]>>8)&15)
-							{
-								case 11: drumnum = 38; break;
-								case 12: drumnum = 43; break;
-								case 13: drumnum = 64; break;
-								case 14: drumnum = 50; break;
-								case 15: drumnum = 48; break;
-							}
-							databuf[bufnum] = (unsigned char)drumnum; bufnum++;
-							databuf[bufnum] = (unsigned char)64; bufnum++;
-						}
-						if (option[9] == 3)
-						{
-							freq = adlibfreq[note[nownote]&63];
-							switch((note[nownote]>>8)&15)
-							{
-								case 11: drumnum = 16; chan = 6; freq -= 2048; break;
-								case 12: drumnum = 8; chan = 7; freq -= 2048; break;
-								case 13: drumnum = 4; chan = 8; break;
-								case 14: drumnum = 2; chan = 8; break;
-								case 15: drumnum = 1; chan = 7; freq -= 2048; break;
-							}
-							databuf[bufnum] = (unsigned char)(0xa0+chan); bufnum++;
-							databuf[bufnum] = (unsigned char)(freq&255); bufnum++;
-							databuf[bufnum] = (unsigned char)(0xb0+chan); bufnum++;
-							databuf[bufnum] = (unsigned char)((freq>>8)&223); bufnum++;
-							databuf[bufnum] = (unsigned char)(0xbd); bufnum++;
-							databuf[bufnum] = (unsigned char)(drumstat&(255-drumnum)); bufnum++;
-							drumstat |= drumnum;
-							databuf[bufnum] = (unsigned char)(0xbd); bufnum++;
-							databuf[bufnum] = (unsigned char)(drumstat); bufnum++;
-						}
-					}
-				}
-			}
-			nownote++;
-			if (nownote >= numnotes)
-			{
-				nownote = 0;
-				musicount = (note[nownote]>>12)-1;
-			}
-			quanter = (240/trquant[(note[nownote]>>8)&15]);
-			countstop = (((note[nownote]>>12)+(quanter>>1)) / quanter) * quanter;
-		}
-		if (option[9] == 1)
-		{
-			j = 0;
-			for(i=0;i<bufnum;i++)
-				if (databuf[i] > j)
-					j = databuf[i];
-			if (j == 0)
-				outp(97,inp(97)&0xfc);
-			if (j > 0)
-			{
-				outp(0x43,0xb6);
-				outp(0x42,(unsigned)(1193280L / pcfreq[j])&255);
-				outp(0x42,(unsigned)(1193280L / pcfreq[j])>>8);
-				outp(0x61,inp(0x61)|0x3);
-			}
-		}
-		if (option[9] == 2)
-		{
-			while ((inp(0x331)&0x80) == 0)
-				inp(0x330);
-			for(i=0;i<bufnum;i++)
-			{
-				midiscrap = 256;
-				while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-					midiscrap--;
-				if (midiscrap > 0)
-					outp(dataport,databuf[i]);
-			}
-		}
-		if (option[9] == 3)
-			for(i=0;i<bufnum;i+=2)
-				_asm \
-				{
-					mov dx, 0x388             ; get the left 3812 address
-					mov bx, i
-					mov ax, databuf[bx]       ; get the index value
-					out dx, al                ; output to both chips
-					in al, dx                 ; slow down for the index to settle
-					in al, dx
-					in al, dx
-					in al, dx
-					in al, dx
-					inc dx                    ; move to the data register
-					inc bx
-					mov ax, databuf[bx]
-					out dx, al                ; write the data out
-					mov cx, 33                ; load the loop count
-			 lbl2:in al, dx
-					loop lbl2
-				}
-	}
-	outp(0x20,0x20);
-}
-
-setinst(synth,chan,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10)
-int chan;
-unsigned char synth,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10;
-{
-	int offs;
-
-	outdata(synth,0xa0+chan,0);
-	outdata(synth,0xb0+chan,0);
-	outdata(synth,0xc0+chan,v10);
-	if (chan == 0)
-		offs = 0;
-	if (chan == 1)
-		offs = 1;
-	if (chan == 2)
-		offs = 2;
-	if (chan == 3)
-		offs = 8;
-	if (chan == 4)
-		offs = 9;
-	if (chan == 5)
-		offs = 10;
-	if (chan == 6)
-		offs = 16;
-	if (chan == 7)
-		offs = 17;
-	if (chan == 8)
-		offs = 18;
-	outdata(synth,0x20+offs,v5);
-	outdata(synth,0x40+offs,v6);
-	outdata(synth,0x60+offs,v7);
-	outdata(synth,0x80+offs,v8);
-	outdata(synth,0xe0+offs,v9);
-	offs+=3;
-	outdata(synth,0x20+offs,v0);
-	outdata(synth,0x40+offs,v1);
-	outdata(synth,0x60+offs,v2);
-	outdata(synth,0x80+offs,v3);
-	outdata(synth,0xe0+offs,v4);
-}
-
-setmidiinsts()
-{
-	midiscrap = 256;
-	while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-		midiscrap--;
-	if (midiscrap > 0)
-		outp(dataport,0xc0);
-	midiscrap = 256;
-	while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-		midiscrap--;
-	if (midiscrap > 0)
-		outp(dataport,midiinst);
-	midiscrap = 256;
-	while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-		midiscrap--;
-	if (midiscrap > 0)
-		outp(dataport,0xc1);
-	midiscrap = 256;
-	while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-		midiscrap--;
-	if (midiscrap > 0)
-		outp(dataport,midiinst);
-	midiscrap = 256;
-	while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-		midiscrap--;
-	if (midiscrap > 0)
-		outp(dataport,0xc2);
-	midiscrap = 256;
-	while ((midiscrap > 0) && ((inp(statport) & 0x40) != 0))
-		midiscrap--;
-	if (midiscrap > 0)
-		outp(dataport,14);
 }
